@@ -50,7 +50,7 @@ export function PuyoGameComponent() {
       setHighScore(parseInt(storedHighScore, 10))
     }
 
-    audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+    audioContext.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
   }, [])
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function PuyoGameComponent() {
     }
   }, [score, highScore])
 
-  const playSound = (frequency: number, duration: number) => {
+  const playSound = useCallback((frequency: number, duration: number) => {
     if (audioContext.current) {
       const oscillator = audioContext.current.createOscillator()
       const gainNode = audioContext.current.createGain()
@@ -74,9 +74,9 @@ export function PuyoGameComponent() {
       oscillator.start()
       oscillator.stop(audioContext.current.currentTime + duration)
     }
-  }
+  }, [])
 
-  const startGame = () => {
+  const startGame = useCallback(() => {
     setGrid(createEmptyGrid())
     setScore(0)
     setChainCounter(0)
@@ -84,39 +84,13 @@ export function PuyoGameComponent() {
     setNextPuyo(generatePuyoPair())
     setGameState('active')
     setIsPaused(false)
-  }
+  }, [generatePuyoPair])
 
-  const togglePause = () => {
-    setIsPaused(!isPaused)
-  }
+  const togglePause = useCallback(() => {
+    setIsPaused(prev => !prev)
+  }, [])
 
-  const movePuyo = (direction: 'left' | 'right' | 'down') => {
-    if (!currentPuyo || gameState !== 'active' || isPaused) return
-
-    const newPuyo = { ...currentPuyo }
-    if (direction === 'left') newPuyo.x -= 1
-    if (direction === 'right') newPuyo.x += 1
-    if (direction === 'down') newPuyo.y += 1
-
-    if (isValidMove(newPuyo)) {
-      setCurrentPuyo(newPuyo)
-    } else if (direction === 'down') {
-      placePuyo()
-    }
-  }
-
-  const rotatePuyo = (direction: 'left' | 'right') => {
-    if (!currentPuyo || gameState !== 'active' || isPaused) return
-
-    const newPuyo = { ...currentPuyo }
-    newPuyo.rotation = (newPuyo.rotation + (direction === 'left' ? -1 : 1) + 4) % 4
-
-    if (isValidMove(newPuyo)) {
-      setCurrentPuyo(newPuyo)
-    }
-  }
-
-  const isValidMove = (puyo: PuyoPair): boolean => {
+  const isValidMove = useCallback((puyo: PuyoPair): boolean => {
     const { x, y, rotation } = puyo
     const [x2, y2] = getSecondPuyoPosition(x, y, rotation)
 
@@ -125,9 +99,9 @@ export function PuyoGameComponent() {
       x2 >= 0 && x2 < GRID_COLS && y2 >= 0 && y2 < GRID_ROWS &&
       !grid[y][x] && !grid[y2][x2]
     )
-  }
+  }, [grid])
 
-  const getSecondPuyoPosition = (x: number, y: number, rotation: number): [number, number] => {
+  const getSecondPuyoPosition = useCallback((x: number, y: number, rotation: number): [number, number] => {
     switch (rotation) {
       case 0: return [x, y - 1]
       case 1: return [x + 1, y]
@@ -135,9 +109,9 @@ export function PuyoGameComponent() {
       case 3: return [x - 1, y]
       default: return [x, y]
     }
-  }
+  }, [])
 
-  const placePuyo = () => {
+  const placePuyo = useCallback(() => {
     if (!currentPuyo) return
 
     const newGrid = [...grid]
@@ -150,9 +124,35 @@ export function PuyoGameComponent() {
     setGrid(newGrid)
     setCurrentPuyo(null)
     checkForMatches(newGrid)
-  }
+  }, [currentPuyo, grid, getSecondPuyoPosition])
 
-  const checkForMatches = (grid: Grid) => {
+  const movePuyo = useCallback((direction: 'left' | 'right' | 'down') => {
+    if (!currentPuyo || gameState !== 'active' || isPaused) return
+
+    const newPuyo = { ...currentPuyo }
+    if (direction === 'left') newPuyo.x -= 1
+    if (direction === 'right') newPuyo.x += 1
+    if (direction === 'down') newPuyo.y += 1
+
+    if (isValidMove(newPuyo)) {
+      setCurrentPuyo(newPuyo)
+    } else if (direction === 'down') {
+      placePuyo()
+    }
+  }, [currentPuyo, gameState, isPaused, isValidMove, placePuyo])
+
+  const rotatePuyo = useCallback((direction: 'left' | 'right') => {
+    if (!currentPuyo || gameState !== 'active' || isPaused) return
+
+    const newPuyo = { ...currentPuyo }
+    newPuyo.rotation = (newPuyo.rotation + (direction === 'left' ? -1 : 1) + 4) % 4
+
+    if (isValidMove(newPuyo)) {
+      setCurrentPuyo(newPuyo)
+    }
+  }, [currentPuyo, gameState, isPaused, isValidMove])
+
+  const checkForMatches = useCallback((grid: Grid) => {
     let newGrid = [...grid]
     let chainCount = 0
     let hasMatches
@@ -207,9 +207,9 @@ export function PuyoGameComponent() {
     if (newGrid[1].some(cell => cell !== null)) {
       setGameState('over')
     }
-  }
+  }, [generatePuyoPair, nextPuyo, playSound])
 
-  const findConnectedPuyos = (grid: Grid, x: number, y: number, color: PuyoColor, visited: Set<string> = new Set()): Set<string> => {
+  const findConnectedPuyos = useCallback((grid: Grid, x: number, y: number, color: PuyoColor, visited: Set<string> = new Set()): Set<string> => {
     const key = `${x},${y}`
     if (
       x < 0 || x >= GRID_COLS || y < 0 || y >= GRID_ROWS ||
@@ -226,9 +226,9 @@ export function PuyoGameComponent() {
     findConnectedPuyos(grid, x, y - 1, color, visited)
 
     return visited
-  }
+  }, [])
 
-  const applyGravity = (grid: Grid): Grid => {
+  const applyGravity = useCallback((grid: Grid): Grid => {
     const newGrid = [...grid]
     for (let x = 0; x < GRID_COLS; x++) {
       let writeY = GRID_ROWS - 1
@@ -243,7 +243,7 @@ export function PuyoGameComponent() {
       }
     }
     return newGrid
-  }
+  }, [])
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -263,7 +263,7 @@ export function PuyoGameComponent() {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [currentPuyo, gameState, isPaused])
+  }, [isPaused, movePuyo, playSound, rotatePuyo, togglePause])
 
   useEffect(() => {
     if (gameState === 'active' && !isPaused) {
@@ -273,9 +273,9 @@ export function PuyoGameComponent() {
 
       return () => clearInterval(gameLoop)
     }
-  }, [gameState, currentPuyo, isPaused])
+  }, [gameState, isPaused, movePuyo])
 
-  const renderGrid = () => {
+  const renderGrid = useCallback(() => {
     return grid.map((row, y) => (
       <div key={y} className="flex">
         {row.map((color, x) => (
@@ -286,7 +286,7 @@ export function PuyoGameComponent() {
         ))}
       </div>
     ))
-  }
+  }, [grid])
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
